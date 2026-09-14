@@ -278,6 +278,97 @@ Runs `next dev` and `tauri dev` together. The first run compiles the Rust shell
 See [`DESKTOP.md`](DESKTOP.md) for architecture, data locations, and signing &
 notarization.
 
+## 🌐 Run in the browser (web mode)
+
+You don't need Rust or Tauri to use HeliosGen. The desktop shell is only a
+wrapper: it spawns this same Next.js app as a local Node server and points a
+webview at it. Run that server yourself and you get the **same app, same
+features**, in a normal browser tab.
+
+### Requirements
+
+| Tool | Notes |
+| --- | --- |
+| **Node 22.13+** | Required — the local database uses the built-in `node:sqlite`. (`node --version` to check.) |
+| **ffmpeg / ffprobe** *(optional)* | Needed for video trim, frame extraction, and metadata stripping on uploaded videos. Without it, those actions error; image generation, workflows and everything else keep working. |
+
+ffmpeg/ffprobe are **not bundled** — install them and make sure they're on your
+`PATH` (`ffmpeg -version` should work in a terminal). Everything else is pure
+Node, no native build.
+
+### Run it
+
+```bash
+npm install
+npm run dev            # → http://localhost:3000
+```
+
+Then open <http://localhost:3000>.
+
+For a production-style run (faster, but no hot reload):
+
+```bash
+npm run build
+npx next start -p 3000     # → http://localhost:3000
+```
+
+> ⚠️ **Windows:** don't use `npm run start` — its `-p ${PORT:-3000}` uses
+> shell-style expansion that npm does **not** perform on Windows, so it fails
+> with `argument '${PORT:-3000}' is invalid`. Use `npx next start -p 3000`
+> instead (or set the port via `PORT` with a shell that expands it).
+
+### Where your data goes
+
+Without the desktop shell, `HELIOS_DATA_DIR` / `HELIOS_MEDIA_DIR` are unset and
+both fall back to the repo (both gitignored — delete them to reset):
+
+| What | Location |
+| --- | --- |
+| Database — generations, uploads, folders, workflows, settings, API keys | `data/guest.db` (SQLite) |
+| Media — generated images/videos, uploads, reference files | `public/generated/` |
+
+To keep data somewhere else — or to reuse the folder the packaged desktop app
+already writes to (see the table in **First run** above) — set both variables
+before starting:
+
+```bash
+HELIOS_DATA_DIR=/path/to/data HELIOS_MEDIA_DIR=/path/to/generated npm run dev
+```
+
+### API keys
+
+Same as desktop: open **Settings → API Keys** and paste your
+[kie.ai](https://kie.ai?ref=25abb3f2236cbff9780ab9c2f84479ec) key — it's stored
+in the local SQLite DB. `.env` is optional and only useful for scripting; copy
+[`.env.example`](.env.example) to `.env` if you'd rather seed `KIE_API_KEY` /
+`AZURE_API_KEY` from the environment (in-app values win).
+
+> The `node:sqlite` API still emits an experimental warning on some Node
+> versions. It's harmless; silence it with
+> `NODE_OPTIONS=--disable-warning=ExperimentalWarning npm run dev`.
+
+### What works — and what doesn't
+
+Everything the packaged app does works here, because it *is* the same code:
+infinite canvas, multi-model image/video generation, kie.ai job polling (no
+callback URL or tunnel needed), reference-image upload, galleries, folders,
+workflow import/export, and the Codex CLI provider. The caveats are the same
+ones the desktop build has:
+
+- **Google Veo** models still need a callback URL — the poller is skipped for
+  them. Use the other video models.
+- **Large video *file* inputs** (>10 MB) go through a base64 upload path and may
+  fail; use another model or a smaller file.
+- **Codex CLI** (optional GPT Image 2 backend) needs `codex` +
+  `codex-imagegen` on your `PATH` and a one-time login in
+  **Settings → API Keys**. Missing → the badge just shows **NOT CONFIGURED**.
+
+### A note on exposure
+
+There is **no authentication** — the app is built to be a single-user local
+tool. Keep it on `localhost`; don't run it on a public interface or expose the
+port to the internet.
+
 ---
 
 # 🤝 Contributions
